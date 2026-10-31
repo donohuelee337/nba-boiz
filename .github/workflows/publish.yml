@@ -1,0 +1,33 @@
+# CHANGELOG — .github/workflows/publish.yml (newest first)
+# 2026-10-31 · v2.0 · SECURITY the card's /exec address now comes from the NBA_CARD_EXEC secret (never in the repo);
+#   no raw copy of Google's page is written or uploaded; strip tests run before every publish.
+#   WHY: Lee 2026-10-30 — results public, algorithm private. Public repo artifacts and logs are readable by anyone.
+#   NOTE: GitHub runs */5 schedules late under load (5–15 min is normal). Actions → publish → Run workflow forces one.
+#   GitHub pauses scheduled workflows after 60 days with no repo activity; the Actions tab then shows "Enable workflow".
+# 2026-10-30 · v1.0 · ADD every-5-min static mirror of the NBA-BOIZ web card → GitHub Pages.
+name: publish
+on:
+  schedule: [{ cron: '*/5 * * * *' }]
+  workflow_dispatch: {}
+  push: { branches: [main] }
+permissions: { contents: read, pages: write, id-token: write }
+concurrency: { group: pages, cancel-in-progress: false }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: node scripts/test.mjs
+      - run: node scripts/scrape.mjs
+        env: { NBA_CARD_EXEC: '${{ secrets.NBA_CARD_EXEC }}' }
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: site, retention-days: 1 }
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: { name: github-pages, url: '${{ steps.d.outputs.page_url }}' }
+    steps:
+      - id: d
+        uses: actions/deploy-pages@v4
